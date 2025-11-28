@@ -78,3 +78,4 @@ FxCopReport.xml
 
 # Visual Studio Code
 .vscode/
+appsettings.Development.json

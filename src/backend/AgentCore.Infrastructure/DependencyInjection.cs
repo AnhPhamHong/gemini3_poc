@@ -1,5 +1,5 @@
-using AgentCore.Application.Services;
 using AgentCore.Domain.Interfaces;
+using AgentCore.Infrastructure.External;
 using AgentCore.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +15,7 @@ public static class DependencyInjection
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"), o => o.UseVector()));
 
         services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+        services.AddScoped<IGeminiClient, GeminiClient>();
         
         return services;
     }
