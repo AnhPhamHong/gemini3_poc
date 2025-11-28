@@ -10,10 +10,13 @@ public class AgentCoreDbContext : DbContext
     }
 
     public DbSet<Workflow> Workflows { get; set; }
+    public DbSet<Blog> Blogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.HasPostgresExtension("vector");
 
         modelBuilder.Entity<Workflow>(entity =>
         {
@@ -26,6 +29,12 @@ public class AgentCoreDbContext : DbContext
                     v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                     v => System.Text.Json.JsonSerializer.Deserialize<List<ChatMessage>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<ChatMessage>()
                 );
+        });
+
+        modelBuilder.Entity<Blog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Embedding).HasColumnType("vector(768)"); // Adjust dimension as needed
         });
     }
 }

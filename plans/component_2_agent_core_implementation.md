@@ -293,12 +293,19 @@ CREATE INDEX ON Blogs USING hnsw (Embedding vector_cosine_ops);
 **Workflows Table**:
 
 ```sql
+
 CREATE TABLE Workflows (
     Id UUID PRIMARY KEY,
     Topic TEXT NOT NULL,
     State TEXT NOT NULL,
-    Data JSONB, -- Stores research, outline, drafts
-    UpdatedAt TIMESTAMP WITH TIME ZONE
+    ResearchData TEXT,
+    Outline TEXT,
+    DraftContent TEXT,
+    Tone TEXT,
+    Feedback TEXT,
+    ChatHistory JSONB,
+    CreatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UpdatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
 
@@ -314,7 +321,7 @@ public static class ServiceCollectionExtensions
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(OrchestratorService).Assembly));
         
         // EF Core with PostgreSQL and Vector support
-        services.AddDbContext<AgentDbContext>(options =>
+        services.AddDbContext<AgentCoreDbContext>(options =>
             options.UseNpgsql(config.GetConnectionString("DefaultConnection"), o => o.UseVector()));
 
         services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
@@ -329,7 +336,9 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IOrchestratorService, OrchestratorService>();
-        services.AddScoped<IBlogRepository, BlogRepository>();
+        services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+        // Add BlogRepository when implemented
+        // services.AddScoped<IBlogRepository, BlogRepository>();
         
         return services;
     }
