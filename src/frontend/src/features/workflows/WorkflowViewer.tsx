@@ -2,6 +2,8 @@ import { useAppSelector } from '@/app/hooks';
 import { useGetWorkflowQuery } from '@/services/api';
 import { useWorkflowSubscription } from '@/hooks/useWorkflowSubscription';
 import OutlineEditor from './OutlineEditor';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ReactMarkdown from 'react-markdown';
 
 export default function WorkflowViewer() {
     const currentWorkflow = useAppSelector((state) => state.workflow.currentWorkflow);
@@ -92,16 +94,29 @@ export default function WorkflowViewer() {
                     </div>
                 </div>
 
+                {/* Researching State Display */}
+                {workflow.state === 'Researching' && (
+                    <div className="flex flex-col items-center justify-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                        <LoadingSpinner size="lg" className="mb-4 text-blue-500" />
+                        <h4 className="text-lg font-medium text-gray-800">Researching Topic...</h4>
+                        <p className="text-gray-500 mt-2 text-center max-w-md">
+                            The agent is currently analyzing your topic, gathering relevant information, and preparing a comprehensive outline.
+                        </p>
+                    </div>
+                )}
+
                 {/* Data Sections - Split View */}
                 <div className={`grid gap-6 ${workflow.data.outline && workflow.data.draft ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
                     {/* Research Section */}
                     {workflow.data.research && (
                         <div className="bg-white rounded-lg border border-gray-200 p-4">
                             <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Research Findings</h4>
-                            <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                                {typeof workflow.data.research === 'string'
-                                    ? workflow.data.research
-                                    : JSON.stringify(workflow.data.research, null, 2)}
+                            <div className="prose prose-sm max-w-none text-gray-700 max-h-96 overflow-y-auto">
+                                {typeof workflow.data.research === 'string' ? (
+                                    <ReactMarkdown>{workflow.data.research}</ReactMarkdown>
+                                ) : (
+                                    <pre>{JSON.stringify(workflow.data.research, null, 2)}</pre>
+                                )}
                             </div>
                         </div>
                     )}

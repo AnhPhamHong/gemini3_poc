@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApproveOutlineMutation, useRejectOutlineMutation } from '@/services/api';
+import ReactMarkdown from 'react-markdown';
 
 interface OutlineEditorProps {
     workflowId: string;
@@ -44,8 +45,8 @@ export default function OutlineEditor({ workflowId, initialOutline, isReadOnly =
         return (
             <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Outline</h4>
-                <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                    {outline}
+                <div className="prose prose-sm max-w-none text-gray-700">
+                    <ReactMarkdown>{outline}</ReactMarkdown>
                 </div>
             </div>
         );

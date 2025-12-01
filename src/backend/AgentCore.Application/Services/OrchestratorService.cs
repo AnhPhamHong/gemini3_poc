@@ -3,6 +3,8 @@ using AgentCore.Domain.Entities;
 using AgentCore.Domain.Enums;
 using AgentCore.Domain.Interfaces;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace AgentCore.Application.Services;
 
@@ -11,15 +13,21 @@ public class OrchestratorService : IOrchestratorService
     private readonly IMediator _mediator;
     private readonly IWorkflowRepository _repository;
     private readonly IWorkflowNotificationService _notificationService;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<OrchestratorService> _logger;
 
     public OrchestratorService(
         IMediator mediator, 
         IWorkflowRepository repository,
-        IWorkflowNotificationService notificationService)
+        IWorkflowNotificationService notificationService,
+        IServiceScopeFactory scopeFactory,
+        ILogger<OrchestratorService> logger)
     {
         _mediator = mediator;
         _repository = repository;
         _notificationService = notificationService;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     public async Task<Guid> StartWorkflowAsync(string topic, string? tone = null)
@@ -27,9 +35,8 @@ public class OrchestratorService : IOrchestratorService
         var workflow = new Workflow(topic, tone);
         await _repository.SaveAsync(workflow);
         
-        // Start processing in background (fire and forget for now, or just return ID)
-        // In a real app, this might be a background job.
-        // For this POC, we'll assume the client calls ProcessWorkflowAsync explicitly or we trigger it here.
+        // Start processing in background
+        RunInBackground(workflow.Id);
         
         return workflow.Id;
     }
@@ -119,18 +126,28 @@ public class OrchestratorService : IOrchestratorService
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error processing workflow {WorkflowId}", workflowId);
+                
                 // Handle any error during workflow processing
-                var workflow = await _repository.GetAsync(workflowId);
-                if (workflow != null)
+                try 
                 {
-                    workflow.TransitionTo(WorkflowState.Failed);
-                    workflow.AddChatMessage("system", $"Workflow failed: {ex.Message}");
-                    await _repository.SaveAsync(workflow);
-                    await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
+                    // We need to reload the workflow to ensure we have a clean state/context if possible,
+                    // but since we are in a loop with the same context, we might be in trouble if the context is poisoned.
+                    // However, for this POC, we'll try to update the state.
+                    var workflow = await _repository.GetAsync(workflowId);
+                    if (workflow != null)
+                    {
+                        workflow.TransitionTo(WorkflowState.Failed);
+                        workflow.AddChatMessage("system", $"Workflow failed: {ex.Message}");
+                        await _repository.SaveAsync(workflow);
+                        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    _logger.LogError(innerEx, "Error updating workflow {WorkflowId} to Failed state", workflowId);
                 }
                 
-                // Re-throw or log? For background task, we should probably just log and stop
-                // The exception is already logged by the caller (Task.Run) usually, but good to be explicit
                 break; // Stop processing on error
             }
 
@@ -161,7 +178,7 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing
-        _ = Task.Run(() => ProcessWorkflowAsync(workflowId));
+        RunInBackground(workflowId);
 
         return true;
     }
@@ -181,7 +198,7 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing to regenerate outline
-        _ = Task.Run(() => ProcessWorkflowAsync(workflowId));
+        RunInBackground(workflowId);
 
         return true;
     }
@@ -208,7 +225,7 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing
-        _ = Task.Run(() => ProcessWorkflowAsync(workflowId));
+        RunInBackground(workflowId);
 
         return true;
     }
@@ -233,5 +250,21 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         return response;
+    }
+    private void RunInBackground(Guid workflowId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var orchestrator = scope.ServiceProvider.GetRequiredService<IOrchestratorService>();
+                await orchestrator.ProcessWorkflowAsync(workflowId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error running background workflow {WorkflowId}", workflowId);
+            }
+        });
     }
 }
