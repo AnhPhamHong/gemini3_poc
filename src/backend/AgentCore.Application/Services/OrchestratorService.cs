@@ -10,11 +10,16 @@ public class OrchestratorService : IOrchestratorService
 {
     private readonly IMediator _mediator;
     private readonly IWorkflowRepository _repository;
+    private readonly IWorkflowNotificationService _notificationService;
 
-    public OrchestratorService(IMediator mediator, IWorkflowRepository repository)
+    public OrchestratorService(
+        IMediator mediator, 
+        IWorkflowRepository repository,
+        IWorkflowNotificationService notificationService)
     {
         _mediator = mediator;
         _repository = repository;
+        _notificationService = notificationService;
     }
 
     public async Task<Guid> StartWorkflowAsync(string topic, string? tone = null)
@@ -29,65 +34,108 @@ public class OrchestratorService : IOrchestratorService
         return workflow.Id;
     }
 
-    public async Task ProcessWorkflowAsync(Guid workflowId)
+    public async Task ProcessWorkflowAsync(Guid workflowId, int maxIterations = 10)
     {
-        var workflow = await _repository.GetAsync(workflowId);
-        if (workflow == null) throw new ArgumentException("Workflow not found", nameof(workflowId));
+        // Process workflow until it reaches a state that requires user input or completion
+        var iteration = 0;
 
-        switch (workflow.State)
+        while (iteration < maxIterations)
         {
-            case WorkflowState.Idle:
-                workflow.TransitionTo(WorkflowState.Researching);
-                break;
+            try
+            {
+            var workflow = await _repository.GetAsync(workflowId);
+            if (workflow == null) throw new ArgumentException("Workflow not found", nameof(workflowId));
 
-            case WorkflowState.Researching:
-                var researchData = await _mediator.Send(new ResearchCommand(workflow.Topic));
-                workflow.UpdateResearch(researchData);
-                workflow.TransitionTo(WorkflowState.Outlining);
-                break;
+            var currentState = workflow.State;
+            var shouldContinue = false;
 
-            case WorkflowState.Outlining:
-                if (string.IsNullOrEmpty(workflow.ResearchData)) throw new InvalidOperationException("Research data missing");
-                var outline = await _mediator.Send(new GenerateOutlineCommand(workflow.Topic, workflow.ResearchData));
-                workflow.SetOutline(outline);
-                workflow.TransitionTo(WorkflowState.WaitingApproval);
-                break;
+            switch (workflow.State)
+            {
+                case WorkflowState.Idle:
+                    workflow.TransitionTo(WorkflowState.Researching);
+                    shouldContinue = true;
+                    break;
 
-            case WorkflowState.WaitingApproval:
-                // Needs manual intervention. 
-                // In a real app, we'd stop here. 
-                // For auto-pilot mode, we might auto-approve.
-                // Let's assume we auto-approve for now to move to Drafting.
-                workflow.TransitionTo(WorkflowState.Drafting);
-                break;
+                case WorkflowState.Researching:
+                    var researchData = await _mediator.Send(new ResearchCommand(workflow.Topic));
+                    workflow.UpdateResearch(researchData);
+                    workflow.TransitionTo(WorkflowState.Outlining);
+                    shouldContinue = true;
+                    break;
 
-            case WorkflowState.Drafting:
-                 if (string.IsNullOrEmpty(workflow.Outline)) throw new InvalidOperationException("Outline missing");
-                var draft = await _mediator.Send(new GenerateDraftCommand(workflow.Topic, workflow.Outline));
-                workflow.SetDraft(draft);
-                workflow.TransitionTo(WorkflowState.Editing);
-                break;
+                case WorkflowState.Outlining:
+                    if (string.IsNullOrEmpty(workflow.ResearchData)) throw new InvalidOperationException("Research data missing");
+                    var outline = await _mediator.Send(new GenerateOutlineCommand(workflow.Topic, workflow.ResearchData));
+                    workflow.SetOutline(outline);
+                    workflow.TransitionTo(WorkflowState.WaitingApproval);
+                    shouldContinue = false; // Stop here - user needs to approve
+                    break;
 
-            case WorkflowState.Editing:
-                if (string.IsNullOrEmpty(workflow.DraftContent)) throw new InvalidOperationException("Draft content missing");
-                var edited = await _mediator.Send(new EditContentCommand(workflow.DraftContent));
-                workflow.SetDraft(edited); // Update draft with edited version
-                workflow.TransitionTo(WorkflowState.Optimizing);
-                break;
+                case WorkflowState.WaitingApproval:
+                    // Needs manual intervention - stop processing
+                    shouldContinue = false;
+                    break;
 
-            case WorkflowState.Optimizing:
-                 if (string.IsNullOrEmpty(workflow.DraftContent)) throw new InvalidOperationException("Draft content missing");
-                var seoResult = await _mediator.Send(new AnalyzeSeoCommand(workflow.DraftContent));
-                // We might store SEO result, but for now just finish
-                workflow.TransitionTo(WorkflowState.Final);
-                break;
+                case WorkflowState.Drafting:
+                     if (string.IsNullOrEmpty(workflow.Outline)) throw new InvalidOperationException("Outline missing");
+                    var draft = await _mediator.Send(new GenerateDraftCommand(workflow.Topic, workflow.Outline));
+                    workflow.SetDraft(draft);
+                    workflow.TransitionTo(WorkflowState.Editing);
+                    shouldContinue = true;
+                    break;
+
+                case WorkflowState.Editing:
+                    if (string.IsNullOrEmpty(workflow.DraftContent)) throw new InvalidOperationException("Draft content missing");
+                    var edited = await _mediator.Send(new EditContentCommand(workflow.DraftContent));
+                    workflow.SetDraft(edited); // Update draft with edited version
+                    workflow.TransitionTo(WorkflowState.Optimizing);
+                    shouldContinue = true;
+                    break;
+
+                case WorkflowState.Optimizing:
+                     if (string.IsNullOrEmpty(workflow.DraftContent)) throw new InvalidOperationException("Draft content missing");
+                    var seoResult = await _mediator.Send(new AnalyzeSeoCommand(workflow.DraftContent));
+                    // We might store SEO result, but for now just finish
+                    workflow.TransitionTo(WorkflowState.Final);
+                    shouldContinue = false; // Stop - workflow complete
+                    break;
+                    
+                case WorkflowState.Final:
+                    // Already done
+                    shouldContinue = false;
+                    break;
+            }
+
+            await _repository.SaveAsync(workflow);
+            
+            // Notify connected clients of workflow update
+            await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
+
+                // If we shouldn't continue or state didn't change, break the loop
+                if (!shouldContinue || workflow.State == currentState)
+                {
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Handle any error during workflow processing
+                var workflow = await _repository.GetAsync(workflowId);
+                if (workflow != null)
+                {
+                    workflow.TransitionTo(WorkflowState.Failed);
+                    workflow.AddChatMessage("system", $"Workflow failed: {ex.Message}");
+                    await _repository.SaveAsync(workflow);
+                    await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
+                }
                 
-            case WorkflowState.Final:
-                // Already done
-                break;
-        }
+                // Re-throw or log? For background task, we should probably just log and stop
+                // The exception is already logged by the caller (Task.Run) usually, but good to be explicit
+                break; // Stop processing on error
+            }
 
-        await _repository.SaveAsync(workflow);
+            iteration++;
+        }
     }
 
     public async Task<Workflow?> GetWorkflowAsync(Guid workflowId)
@@ -108,6 +156,9 @@ public class OrchestratorService : IOrchestratorService
 
         workflow.TransitionTo(WorkflowState.Drafting);
         await _repository.SaveAsync(workflow);
+        
+        // Notify connected clients
+        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing
         _ = Task.Run(() => ProcessWorkflowAsync(workflowId));
@@ -125,6 +176,9 @@ public class OrchestratorService : IOrchestratorService
         workflow.AddChatMessage("user", $"Outline rejected: {feedback}");
         workflow.TransitionTo(WorkflowState.Outlining);
         await _repository.SaveAsync(workflow);
+        
+        // Notify connected clients
+        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing to regenerate outline
         _ = Task.Run(() => ProcessWorkflowAsync(workflowId));
@@ -149,6 +203,9 @@ public class OrchestratorService : IOrchestratorService
         }
 
         await _repository.SaveAsync(workflow);
+        
+        // Notify connected clients
+        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing
         _ = Task.Run(() => ProcessWorkflowAsync(workflowId));
@@ -171,6 +228,9 @@ public class OrchestratorService : IOrchestratorService
         
         workflow.AddChatMessage("assistant", response);
         await _repository.SaveAsync(workflow);
+        
+        // Notify connected clients
+        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         return response;
     }

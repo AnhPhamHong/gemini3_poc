@@ -114,7 +114,7 @@ public class GetWorkflowQueryHandler : IRequestHandler<GetWorkflowQuery, Workflo
             Data = new WorkflowDataDto
             {
                 Research = workflow.ResearchData,
-                Outline = null, // Parse from workflow.Outline if structured
+                Outline = workflow.Outline,
                 Draft = string.IsNullOrEmpty(workflow.DraftContent) ? null : new DraftDto
                 {
                     Content = workflow.DraftContent,

@@ -13,13 +13,15 @@ public class OrchestratorServiceTests
 {
     private readonly Mock<IMediator> _mediatorMock;
     private readonly Mock<IWorkflowRepository> _repositoryMock;
+    private readonly Mock<IWorkflowNotificationService> _notificationServiceMock;
     private readonly OrchestratorService _service;
 
     public OrchestratorServiceTests()
     {
         _mediatorMock = new Mock<IMediator>();
         _repositoryMock = new Mock<IWorkflowRepository>();
-        _service = new OrchestratorService(_mediatorMock.Object, _repositoryMock.Object);
+        _notificationServiceMock = new Mock<IWorkflowNotificationService>();
+        _service = new OrchestratorService(_mediatorMock.Object, _repositoryMock.Object, _notificationServiceMock.Object);
     }
 
     [Fact]
@@ -44,7 +46,7 @@ public class OrchestratorServiceTests
         _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.Researching, workflow.State);
@@ -62,7 +64,7 @@ public class OrchestratorServiceTests
             .ReturnsAsync("Research Data");
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.Outlining, workflow.State);
@@ -82,7 +84,7 @@ public class OrchestratorServiceTests
             .ReturnsAsync("Outline Data");
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.WaitingApproval, workflow.State);
@@ -99,10 +101,10 @@ public class OrchestratorServiceTests
         _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
-        Assert.Equal(WorkflowState.Drafting, workflow.State);
+        Assert.Equal(WorkflowState.WaitingApproval, workflow.State);
         _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.Once);
     }
 
@@ -118,7 +120,7 @@ public class OrchestratorServiceTests
             .ReturnsAsync("Draft Content");
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.Editing, workflow.State);
@@ -138,7 +140,7 @@ public class OrchestratorServiceTests
             .ReturnsAsync("Edited Content");
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.Optimizing, workflow.State);
@@ -158,10 +160,29 @@ public class OrchestratorServiceTests
             .ReturnsAsync("SEO Result");
 
         // Act
-        await _service.ProcessWorkflowAsync(workflow.Id);
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.Final, workflow.State);
         _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.Once);
+    }
+    [Fact]
+    public async Task ProcessWorkflowAsync_Exception_ShouldTransitionToFailed()
+    {
+        // Arrange
+        var workflow = new Workflow("Test Topic");
+        workflow.TransitionTo(WorkflowState.Researching);
+        _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
+        
+        // Setup mediator to throw exception
+        _mediatorMock.Setup(m => m.Send(It.IsAny<ResearchCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("API Failure"));
+
+        // Act
+        await _service.ProcessWorkflowAsync(workflow.Id, 1);
+
+        // Assert
+        Assert.Equal(WorkflowState.Failed, workflow.State);
+        _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.AtLeastOnce);
     }
 }

@@ -1,19 +1,25 @@
 import { useAppSelector } from '@/app/hooks';
 import { useGetWorkflowQuery } from '@/services/api';
+import { useWorkflowSubscription } from '@/hooks/useWorkflowSubscription';
+import OutlineEditor from './OutlineEditor';
 
 export default function WorkflowViewer() {
     const currentWorkflow = useAppSelector((state) => state.workflow.currentWorkflow);
 
-    // Poll for workflow updates if we have a workflow
-    const { data: updatedWorkflow } = useGetWorkflowQuery(
+    // Subscribe to real-time updates via SignalR (no more polling!)
+    useWorkflowSubscription(currentWorkflow?.id);
+
+    // Initial fetch only (no polling)
+    const { data: initialWorkflow } = useGetWorkflowQuery(
         currentWorkflow?.id || '',
         {
             skip: !currentWorkflow?.id,
-            pollingInterval: 2000, // Poll every 2 seconds
+            // No pollingInterval - using SignalR instead!
         }
     );
 
-    const workflow = updatedWorkflow || currentWorkflow;
+    // Use the current workflow from Redux (updated via SignalR) or initial fetch
+    const workflow = currentWorkflow || initialWorkflow;
 
     if (!workflow) {
         return null;
@@ -32,6 +38,8 @@ export default function WorkflowViewer() {
                 return 'bg-purple-500';
             case 'Completed':
                 return 'bg-green-500';
+            case 'Failed':
+                return 'bg-red-500';
             default:
                 return 'bg-gray-500';
         }
@@ -51,6 +59,11 @@ export default function WorkflowViewer() {
                 <div>
                     <p className="text-sm text-gray-600 mb-1">Current Step</p>
                     <p className="text-base font-medium text-gray-800">{workflow.currentStep}</p>
+                    {workflow.state === 'Failed' && (
+                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                            <strong>Error:</strong> The workflow encountered an issue. Please check the chat history for details.
+                        </div>
+                    )}
                 </div>
 
                 {/* Progress Timeline */}
@@ -81,24 +94,26 @@ export default function WorkflowViewer() {
 
                 {/* Data Sections - Split View */}
                 <div className={`grid gap-6 ${workflow.data.outline && workflow.data.draft ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
-                    {/* Outline Section */}
-                    {workflow.data.outline && workflow.data.outline.length > 0 && (
+                    {/* Research Section */}
+                    {workflow.data.research && (
                         <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Outline</h4>
-                            <div className="space-y-3">
-                                {workflow.data.outline.map((section) => (
-                                    <div key={section.id} className="border-l-2 border-primary-500 pl-3">
-                                        <p className="font-medium text-gray-800">{section.heading}</p>
-                                        {section.subheadings.length > 0 && (
-                                            <ul className="list-disc list-inside text-sm text-gray-600 ml-2 mt-1">
-                                                {section.subheadings.map((subheading, idx) => (
-                                                    <li key={idx}>{subheading}</li>
-                                                ))}
-                                            </ul>
-                                        )}
-                                    </div>
-                                ))}
+                            <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Research Findings</h4>
+                            <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                                {typeof workflow.data.research === 'string'
+                                    ? workflow.data.research
+                                    : JSON.stringify(workflow.data.research, null, 2)}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Outline Section */}
+                    {workflow.data.outline && (
+                        <div className={workflow.state === 'WaitingApproval' ? 'col-span-full' : ''}>
+                            <OutlineEditor
+                                workflowId={workflow.id}
+                                initialOutline={workflow.data.outline}
+                                isReadOnly={workflow.state !== 'WaitingApproval'}
+                            />
                         </div>
                     )}
 

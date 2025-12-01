@@ -27,6 +27,13 @@ public class Workflow
         UpdatedAt = DateTime.UtcNow;
     }
 
+    // Private constructor for EF Core
+    private Workflow()
+    {
+        Topic = string.Empty;
+        ChatHistory = new List<ChatMessage>();
+    }
+
     public void TransitionTo(WorkflowState newState)
     {
         // Add validation logic here if needed

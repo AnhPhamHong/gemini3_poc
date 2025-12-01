@@ -7,7 +7,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IOrchestratorService, OrchestratorService>();
+builder.Services.AddScoped<AgentCore.Domain.Interfaces.IWorkflowNotificationService, AgentCore.Api.Services.WorkflowNotificationService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(OrchestratorService).Assembly));
+
+// Add SignalR
+builder.Services.AddSignalR();
 
 // Add controllers
 builder.Services.AddControllers();
@@ -39,9 +43,16 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
+app.UseRouting(); // Important: UseRouting must come before UseEndpoints
 
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapHub<AgentCore.Api.Hubs.WorkflowHub>("/hubs/workflow");
+    // ... other endpoints (e.g., MapControllers, MapRazorPages)
+});
 
 app.Run();

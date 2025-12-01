@@ -9,5 +9,6 @@ public enum WorkflowState
     Drafting,
     Editing,
     Optimizing,
-    Final
+    Final,
+    Failed
 }

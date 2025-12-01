@@ -16,17 +16,11 @@ public class WorkflowDto
 public class WorkflowDataDto
 {
     public string? Research { get; set; }
-    public List<SectionDto>? Outline { get; set; }
+    public string? Outline { get; set; }
     public DraftDto? Draft { get; set; }
 }
 
-public class SectionDto
-{
-    public string Id { get; set; } = string.Empty;
-    public string Heading { get; set; } = string.Empty;
-    public List<string> Subheadings { get; set; } = new();
-    public int Order { get; set; }
-}
+
 
 public class DraftDto
 {

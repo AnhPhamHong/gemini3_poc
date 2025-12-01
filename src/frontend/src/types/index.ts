@@ -18,14 +18,14 @@ export interface Workflow {
     currentStep: string; // Human readable status
     data: {
         research?: ResearchData;
-        outline?: Section[];
+        outline?: string;
         draft?: Draft;
     };
     createdAt: string;
     updatedAt: string;
 }
 
-export type WorkflowState = 'Researching' | 'Outlining' | 'WaitingApproval' | 'Drafting' | 'Review' | 'Optimizing' | 'Completed';
+export type WorkflowState = 'Researching' | 'Outlining' | 'WaitingApproval' | 'Drafting' | 'Review' | 'Optimizing' | 'Completed' | 'Failed';
 
 export interface ResearchData {
     // Define structure based on what backend returns, for now generic
@@ -43,12 +43,7 @@ export interface Draft {
     lastUpdated: string;
 }
 
-export interface Section {
-    id: string;
-    heading: string;
-    subheadings: string[];
-    order: number;
-}
+
 
 // User Settings
 export interface UserSettings {
@@ -82,12 +77,12 @@ export interface CreateWorkflowRequest {
 
 export interface ApproveOutlineRequest {
     workflowId: string;
-    outline: Section[];
+    notes?: string;
 }
 
 export interface RejectOutlineRequest {
     workflowId: string;
-    reason?: string;
+    feedback: string;
 }
 
 export interface ReviseDraftRequest {
