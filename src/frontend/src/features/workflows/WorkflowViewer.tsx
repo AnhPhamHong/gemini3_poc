@@ -117,7 +117,7 @@ export default function WorkflowViewer() {
                 )}
 
                 {/* Data Sections - Split View */}
-                <div className={`grid gap-6 ${workflow.data.outline && workflow.data.draft ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-6 ${workflow.data.research && (workflow.data.outline || workflow.data.draft) ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
                     {/* Research Section */}
                     {workflow.data.research && (
                         <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -133,8 +133,8 @@ export default function WorkflowViewer() {
                     )}
 
                     {/* Outline Section */}
-                    {workflow.data.outline && (
-                        <div className={workflow.state === 'WaitingApproval' ? 'col-span-full' : ''}>
+                    {workflow.data.outline && !workflow.data.draft && (
+                        <div>
                             <OutlineEditor
                                 workflowId={workflow.id}
                                 initialOutline={workflow.data.outline}

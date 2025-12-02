@@ -3,6 +3,8 @@ using AgentCore.Infrastructure.External;
 using AgentCore.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using AgentCore.Application.Interfaces;
+using AgentCore.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentCore.Infrastructure;
@@ -15,6 +17,8 @@ public static class DependencyInjection
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"), o => o.UseVector()));
 
         services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+        services.AddSingleton<IWorkflowQueue, WorkflowQueue>();
+        services.AddHostedService<WorkflowBackgroundService>();
         services.AddScoped<IGeminiClient, GeminiClient>();
         
         return services;

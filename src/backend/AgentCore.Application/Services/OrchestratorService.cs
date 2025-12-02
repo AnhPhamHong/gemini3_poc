@@ -1,4 +1,5 @@
 using AgentCore.Application.Commands;
+using AgentCore.Application.Interfaces;
 using AgentCore.Domain.Entities;
 using AgentCore.Domain.Enums;
 using AgentCore.Domain.Interfaces;
@@ -13,20 +14,20 @@ public class OrchestratorService : IOrchestratorService
     private readonly IMediator _mediator;
     private readonly IWorkflowRepository _repository;
     private readonly IWorkflowNotificationService _notificationService;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IWorkflowQueue _queue;
     private readonly ILogger<OrchestratorService> _logger;
 
     public OrchestratorService(
         IMediator mediator, 
         IWorkflowRepository repository,
         IWorkflowNotificationService notificationService,
-        IServiceScopeFactory scopeFactory,
+        IWorkflowQueue queue,
         ILogger<OrchestratorService> logger)
     {
         _mediator = mediator;
         _repository = repository;
         _notificationService = notificationService;
-        _scopeFactory = scopeFactory;
+        _queue = queue;
         _logger = logger;
     }
 
@@ -36,7 +37,7 @@ public class OrchestratorService : IOrchestratorService
         await _repository.SaveAsync(workflow);
         
         // Start processing in background
-        RunInBackground(workflow.Id);
+        await _queue.QueueBackgroundWorkItemAsync(workflow.Id);
         
         return workflow.Id;
     }
@@ -50,10 +51,8 @@ public class OrchestratorService : IOrchestratorService
         {
             try
             {
-            var workflow = await _repository.GetAsync(workflowId);
-            if (workflow == null) throw new ArgumentException("Workflow not found", nameof(workflowId));
-
-            var currentState = workflow.State;
+            var workflow = await _repository.GetAsync(workflowId) ?? throw new ArgumentException("Workflow not found", nameof(workflowId));
+                var currentState = workflow.State;
             var shouldContinue = false;
 
             switch (workflow.State)
@@ -178,7 +177,7 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing
-        RunInBackground(workflowId);
+        await _queue.QueueBackgroundWorkItemAsync(workflowId);
 
         return true;
     }
@@ -198,7 +197,7 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing to regenerate outline
-        RunInBackground(workflowId);
+        await _queue.QueueBackgroundWorkItemAsync(workflowId);
 
         return true;
     }
@@ -225,7 +224,7 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         // Trigger background processing
-        RunInBackground(workflowId);
+        await _queue.QueueBackgroundWorkItemAsync(workflowId);
 
         return true;
     }
@@ -251,20 +250,5 @@ public class OrchestratorService : IOrchestratorService
 
         return response;
     }
-    private void RunInBackground(Guid workflowId)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var orchestrator = scope.ServiceProvider.GetRequiredService<IOrchestratorService>();
-                await orchestrator.ProcessWorkflowAsync(workflowId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error running background workflow {WorkflowId}", workflowId);
-            }
-        });
-    }
+
 }

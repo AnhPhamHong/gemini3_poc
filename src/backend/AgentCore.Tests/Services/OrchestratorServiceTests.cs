@@ -1,9 +1,11 @@
 using AgentCore.Application.Commands;
+using AgentCore.Application.Interfaces;
 using AgentCore.Application.Services;
 using AgentCore.Domain.Entities;
 using AgentCore.Domain.Enums;
 using AgentCore.Domain.Interfaces;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -14,6 +16,7 @@ public class OrchestratorServiceTests
     private readonly Mock<IMediator> _mediatorMock;
     private readonly Mock<IWorkflowRepository> _repositoryMock;
     private readonly Mock<IWorkflowNotificationService> _notificationServiceMock;
+    private readonly Mock<IWorkflowQueue> _queueMock;
     private readonly OrchestratorService _service;
 
     public OrchestratorServiceTests()
@@ -21,7 +24,8 @@ public class OrchestratorServiceTests
         _mediatorMock = new Mock<IMediator>();
         _repositoryMock = new Mock<IWorkflowRepository>();
         _notificationServiceMock = new Mock<IWorkflowNotificationService>();
-        _service = new OrchestratorService(_mediatorMock.Object, _repositoryMock.Object, _notificationServiceMock.Object);
+        _queueMock = new Mock<IWorkflowQueue>();
+        _service = new OrchestratorService(_mediatorMock.Object, _repositoryMock.Object, _notificationServiceMock.Object, _queueMock.Object, Mock.Of<ILogger<OrchestratorService>>());
     }
 
     [Fact]
@@ -36,6 +40,7 @@ public class OrchestratorServiceTests
         // Assert
         Assert.NotEqual(Guid.Empty, result);
         _repositoryMock.Verify(r => r.SaveAsync(It.Is<Workflow>(w => w.Topic == topic && w.State == WorkflowState.Idle)), Times.Once);
+        _queueMock.Verify(q => q.QueueBackgroundWorkItemAsync(result, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
