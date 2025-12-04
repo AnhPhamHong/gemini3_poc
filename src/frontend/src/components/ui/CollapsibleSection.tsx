@@ -1,6 +1,5 @@
 import React from 'react';
 import { ChevronDownIcon, ChevronUpIcon, CheckCircleIcon } from '@heroicons/react/24/solid';
-import LoadingSpinner from './LoadingSpinner';
 
 interface CollapsibleSectionProps {
     title: string;
@@ -22,7 +21,7 @@ export default function CollapsibleSection({
     const getStatusIcon = () => {
         switch (status) {
             case 'active':
-                return <LoadingSpinner size="sm" className="text-blue-500" />;
+                return <div className="w-2 h-2 rounded-full bg-gray-400" />;
             case 'completed':
                 return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
             case 'failed':

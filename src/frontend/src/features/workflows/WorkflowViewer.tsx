@@ -3,7 +3,6 @@ import { useAppSelector } from '@/app/hooks';
 import { useGetWorkflowQuery } from '@/services/api';
 import { useWorkflowSubscription } from '@/hooks/useWorkflowSubscription';
 import OutlineEditor from './OutlineEditor';
-import EditingView from './EditingView';
 import EditChangesList from './EditChangesList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
@@ -30,6 +29,7 @@ export default function WorkflowViewer() {
         draft: false,
         outline: false,
         research: false,
+        editing: false,
     });
 
     // State for toggling between original and edited draft
@@ -41,7 +41,9 @@ export default function WorkflowViewer() {
 
         const newExpanded = { ...expandedSections };
 
-        if (['Drafting', 'Review', 'Editing', 'Optimizing', 'Final'].includes(workflow.state)) {
+        if (['Editing', 'Optimizing', 'Final'].includes(workflow.state)) {
+            newExpanded.editing = true;
+        } else if (['Drafting', 'Review'].includes(workflow.state)) {
             newExpanded.draft = true;
         } else if (['Outlining', 'WaitingApproval'].includes(workflow.state)) {
             newExpanded.outline = true;
@@ -169,14 +171,46 @@ export default function WorkflowViewer() {
                     <CollapsibleSection
                         title="Content Editing"
                         status={workflow.state === 'Editing' ? 'active' : 'completed'}
-                        isOpen={workflow.state === 'Editing'}
+                        isOpen={expandedSections.editing}
                         onToggle={() => toggleSection('editing')}
                     >
-                        <EditingView
-                            isEditing={workflow.state === 'Editing'}
-                            editedContent={workflow.state !== 'Editing' ? (workflow.data.editedDraft || workflow.data.draft?.content) : undefined}
-                            editChanges={workflow.data.editChanges}
-                        />
+                        {workflow.state === 'Editing' ? (
+                            <div className="flex flex-col items-center justify-center py-12">
+                                <LoadingSpinner size="lg" className="mb-4 text-purple-500" />
+                                <h4 className="text-lg font-semibold text-gray-800 mb-2">Refining your content...</h4>
+                                <p className="text-sm text-gray-500">Our AI editor is improving grammar, style, and flow</p>
+                            </div>
+                        ) : workflow.data.editedDraft ? (
+                            <div className="space-y-4">
+                                {/* Toggle between original and edited */}
+                                <div className="flex items-center justify-between bg-gray-50 p-2 rounded mb-2">
+                                    <span className="text-xs font-medium text-gray-500">
+                                        {showOriginal ? 'Showing: Original Draft' : 'Showing: Edited Version'}
+                                    </span>
+                                    <button
+                                        onClick={() => setShowOriginal(!showOriginal)}
+                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                    >
+                                        {showOriginal ? "Switch to Edited Version" : "View Original Draft"}
+                                    </button>
+                                </div>
+
+                                {/* Content display */}
+                                <div className="prose prose-sm max-w-none text-gray-700">
+                                    <ReactMarkdown>
+                                        {showOriginal
+                                            ? (workflow.data.originalDraft || workflow.data.draft?.content || '')
+                                            : workflow.data.editedDraft
+                                        }
+                                    </ReactMarkdown>
+                                </div>
+
+                                {/* Show changes list when viewing edited version */}
+                                {!showOriginal && workflow.data.editChanges && (
+                                    <EditChangesList changes={workflow.data.editChanges} className="mt-4" />
+                                )}
+                            </div>
+                        ) : null}
                     </CollapsibleSection>
                 )}
 
@@ -195,32 +229,12 @@ export default function WorkflowViewer() {
                                     <p className="text-sm text-gray-500 mt-1">{workflow.data.draft.metaDescription}</p>
                                 </div>
 
-                                {workflow.data.editedDraft && (
-                                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded mb-2">
-                                        <span className="text-xs font-medium text-gray-500">
-                                            {showOriginal ? 'Showing: Original Draft' : 'Showing: Edited Version'}
-                                        </span>
-                                        <button
-                                            onClick={() => setShowOriginal(!showOriginal)}
-                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                                        >
-                                            {showOriginal ? "Switch to Edited Version" : "View Original Draft"}
-                                        </button>
-                                    </div>
-                                )}
-
+                                {/* Always show original draft content */}
                                 <div className="prose prose-sm max-w-none text-gray-700">
                                     <ReactMarkdown>
-                                        {showOriginal
-                                            ? (workflow.data.originalDraft || workflow.data.draft.content)
-                                            : (workflow.data.editedDraft || workflow.data.draft.content)
-                                        }
+                                        {workflow.data.originalDraft || workflow.data.draft.content}
                                     </ReactMarkdown>
                                 </div>
-
-                                {!showOriginal && workflow.data.editChanges && (
-                                    <EditChangesList changes={workflow.data.editChanges} className="mt-4" />
-                                )}
 
                                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
                                     <div className="flex items-center space-x-2">

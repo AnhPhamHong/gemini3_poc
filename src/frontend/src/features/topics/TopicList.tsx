@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
 import { selectTopic } from './topicSlice';
 import { useCreateWorkflowMutation } from '@/services/api';
@@ -7,6 +8,7 @@ import type { TopicSuggestion } from '@/types';
 import { truncateText } from '@/utils/helpers';
 
 export default function TopicList() {
+    const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const suggestions = useAppSelector((state) => state.topics.suggestions);
     const selectedTopic = useAppSelector((state) => state.topics.selectedTopic);
@@ -41,6 +43,7 @@ export default function TopicList() {
                 tone: selectedTopic.tone
             }).unwrap();
             dispatch(setCurrentWorkflow(workflow));
+            navigate(`/generate?id=${workflow.id}`);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to create workflow';
             dispatch(setError(errorMessage));

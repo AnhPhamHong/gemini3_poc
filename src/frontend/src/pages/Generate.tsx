@@ -57,15 +57,18 @@ export default function Generate() {
                 </p>
             </div>
 
-            {/* Progress Indicator */}
-            <ProgressIndicator />
-
-            {/* Workflow Viewer */}
-            <WorkflowViewer />
-
-            {/* Topic Input Form - Only show if no workflow is loaded */}
-            {!workflowId && (
+            {/* Show appropriate content based on URL parameter */}
+            {workflowId ? (
                 <>
+                    {/* Progress Indicator */}
+                    <ProgressIndicator />
+
+                    {/* Workflow Viewer */}
+                    <WorkflowViewer />
+                </>
+            ) : (
+                <>
+                    {/* Topic Input Form - Only show if no workflow is loaded */}
                     <TopicInputForm />
                     <TopicList />
                 </>
