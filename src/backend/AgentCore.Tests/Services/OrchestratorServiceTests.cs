@@ -141,15 +141,18 @@ public class OrchestratorServiceTests
         workflow.SetDraft("Draft Content");
         workflow.TransitionTo(WorkflowState.Editing);
         _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
+        
+        // Return EditedContent with changes (not just string)
         _mediatorMock.Setup(m => m.Send(It.IsAny<EditContentCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("Edited Content");
+            .ReturnsAsync(new EditedContent("Edited Content", new List<string> { "Fixed grammar", "Improved flow" }));
 
         // Act
         await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
         Assert.Equal(WorkflowState.Optimizing, workflow.State);
-        Assert.Equal("Edited Content", workflow.DraftContent);
+        Assert.Equal("Edited Content", workflow.EditedDraft); // Now stored in EditedDraft
+        Assert.Equal("Draft Content", workflow.OriginalDraft); // Original preserved
         _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.Once);
     }
 

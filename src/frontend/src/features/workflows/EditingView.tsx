@@ -1,12 +1,14 @@
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
+import EditChangesList from './EditChangesList';
 
 interface EditingViewProps {
     isEditing: boolean;
     editedContent?: string;
+    editChanges?: string[];
 }
 
-export default function EditingView({ isEditing, editedContent }: EditingViewProps) {
+export default function EditingView({ isEditing, editedContent, editChanges }: EditingViewProps) {
     if (isEditing) {
         return (
             <div className="flex flex-col items-center justify-center py-12">
@@ -26,6 +28,11 @@ export default function EditingView({ isEditing, editedContent }: EditingViewPro
                     </svg>
                     <span className="font-medium">Content refined successfully!</span>
                 </div>
+
+                {/* Display changes summary */}
+                {editChanges && (
+                    <EditChangesList changes={editChanges} className="mb-4" />
+                )}
 
                 {/* Display edited content with green highlight */}
                 <div className="border-l-4 border-green-500 bg-green-50 p-4 rounded-r-md">

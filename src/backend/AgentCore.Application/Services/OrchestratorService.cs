@@ -93,7 +93,10 @@ public class OrchestratorService : IOrchestratorService
                 case WorkflowState.Editing:
                     if (string.IsNullOrEmpty(workflow.DraftContent)) throw new InvalidOperationException("Draft content missing");
                     var edited = await _mediator.Send(new EditContentCommand(workflow.DraftContent, workflow.Tone ?? "Professional"));
-                    workflow.SetDraft(edited.Content); // Extract content from EditedContent
+                    
+                    // Store edited version with changes - preserves original draft
+                    workflow.SetEditedDraft(edited.Content, edited.Changes);
+                    
                     workflow.TransitionTo(WorkflowState.Optimizing);
                     shouldContinue = true;
                     break;

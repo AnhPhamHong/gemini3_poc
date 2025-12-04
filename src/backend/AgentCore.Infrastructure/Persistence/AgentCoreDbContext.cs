@@ -29,6 +29,11 @@ public class AgentCoreDbContext : DbContext
                     v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                     v => System.Text.Json.JsonSerializer.Deserialize<List<ChatMessage>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<ChatMessage>()
                 );
+            
+            // Edited Draft Storage fields
+            entity.Property(e => e.OriginalDraft);
+            entity.Property(e => e.EditedDraft);
+            entity.Property(e => e.EditChanges);
         });
 
         modelBuilder.Entity<Blog>(entity =>

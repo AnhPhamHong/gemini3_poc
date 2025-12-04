@@ -17,9 +17,13 @@ export interface Workflow {
     state: WorkflowState;
     currentStep: string; // Human readable status
     data: {
-        research?: ResearchData;
+        research?: string; // Changed to string to match backend DTO
         outline?: string;
         draft?: Draft;
+        // Edited Draft Storage - Solution 1
+        originalDraft?: string;
+        editedDraft?: string;
+        editChanges?: string[];
     };
     createdAt: string;
     updatedAt: string;

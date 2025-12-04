@@ -122,7 +122,12 @@ public class GetWorkflowQueryHandler : IRequestHandler<GetWorkflowQuery, Workflo
                     MetaTitle = "", // TODO: Extract from content
                     MetaDescription = "",
                     SeoScore = 0
-                }
+                },
+                
+                // Edited Draft Storage fields
+                OriginalDraft = workflow.OriginalDraft,
+                EditedDraft = workflow.EditedDraft,
+                EditChanges = workflow.GetEditChanges()
             },
             CreatedAt = workflow.CreatedAt,
             UpdatedAt = workflow.UpdatedAt

@@ -18,6 +18,11 @@ public class WorkflowDataDto
     public string? Research { get; set; }
     public string? Outline { get; set; }
     public DraftDto? Draft { get; set; }
+    
+    // Edited Draft Storage - Solution 1
+    public string? OriginalDraft { get; set; }
+    public string? EditedDraft { get; set; }
+    public List<string>? EditChanges { get; set; }
 }
 
 

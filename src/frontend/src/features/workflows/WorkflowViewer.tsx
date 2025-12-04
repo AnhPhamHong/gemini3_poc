@@ -4,6 +4,7 @@ import { useGetWorkflowQuery } from '@/services/api';
 import { useWorkflowSubscription } from '@/hooks/useWorkflowSubscription';
 import OutlineEditor from './OutlineEditor';
 import EditingView from './EditingView';
+import EditChangesList from './EditChangesList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
 import CollapsibleSection from '@/components/ui/CollapsibleSection';
@@ -31,6 +32,9 @@ export default function WorkflowViewer() {
         research: false,
     });
 
+    // State for toggling between original and edited draft
+    const [showOriginal, setShowOriginal] = useState(false);
+
     // Automatically expand the current active stage
     useEffect(() => {
         if (!workflow) return;
@@ -41,7 +45,7 @@ export default function WorkflowViewer() {
             newExpanded.draft = true;
         } else if (['Outlining', 'WaitingApproval'].includes(workflow.state)) {
             newExpanded.outline = true;
-        } else if (workflow.state === 'Researching') {
+        } else if (workflow.state === 'Researching' || workflow.state === 'Idle') {
             newExpanded.research = true;
         }
 
@@ -83,8 +87,10 @@ export default function WorkflowViewer() {
 
     // Determine status for each section
     const getResearchStatus = () => {
-        if (workflow.state === 'Researching') return 'active';
+        if (workflow.state === 'Researching' || workflow.state === 'Idle') return 'active';
         if (workflow.data.research) return 'completed';
+        // Infer completion if we are in a later stage
+        if (['Outlining', 'WaitingApproval', 'Drafting', 'Review', 'Editing', 'Optimizing', 'Final'].includes(workflow.state)) return 'completed';
         return 'pending';
     };
 
@@ -168,7 +174,8 @@ export default function WorkflowViewer() {
                     >
                         <EditingView
                             isEditing={workflow.state === 'Editing'}
-                            editedContent={workflow.state !== 'Editing' ? workflow.data.draft?.content : undefined}
+                            editedContent={workflow.state !== 'Editing' ? (workflow.data.editedDraft || workflow.data.draft?.content) : undefined}
+                            editChanges={workflow.data.editChanges}
                         />
                     </CollapsibleSection>
                 )}
@@ -188,9 +195,32 @@ export default function WorkflowViewer() {
                                     <p className="text-sm text-gray-500 mt-1">{workflow.data.draft.metaDescription}</p>
                                 </div>
 
+                                {workflow.data.editedDraft && (
+                                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded mb-2">
+                                        <span className="text-xs font-medium text-gray-500">
+                                            {showOriginal ? 'Showing: Original Draft' : 'Showing: Edited Version'}
+                                        </span>
+                                        <button
+                                            onClick={() => setShowOriginal(!showOriginal)}
+                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                        >
+                                            {showOriginal ? "Switch to Edited Version" : "View Original Draft"}
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="prose prose-sm max-w-none text-gray-700">
-                                    <ReactMarkdown>{workflow.data.draft.content}</ReactMarkdown>
+                                    <ReactMarkdown>
+                                        {showOriginal
+                                            ? (workflow.data.originalDraft || workflow.data.draft.content)
+                                            : (workflow.data.editedDraft || workflow.data.draft.content)
+                                        }
+                                    </ReactMarkdown>
                                 </div>
+
+                                {!showOriginal && workflow.data.editChanges && (
+                                    <EditChangesList changes={workflow.data.editChanges} className="mt-4" />
+                                )}
 
                                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
                                     <div className="flex items-center space-x-2">
@@ -240,7 +270,7 @@ export default function WorkflowViewer() {
                 )}
 
                 {/* 3. Research Section (Bottom Priority) */}
-                {(workflow.data.research || workflow.state === 'Researching' || getResearchStatus() === 'completed') && (
+                {(workflow.data.research || workflow.state === 'Researching' || workflow.state === 'Idle' || getResearchStatus() === 'completed') && (
                     <CollapsibleSection
                         title="Research Findings"
                         status={getResearchStatus()}
@@ -257,8 +287,16 @@ export default function WorkflowViewer() {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-8">
-                                <LoadingSpinner size="lg" className="mb-4 text-blue-500" />
-                                <p className="text-gray-500">Gathering research data...</p>
+                                {['Outlining', 'WaitingApproval', 'Drafting', 'Review', 'Editing', 'Optimizing', 'Final'].includes(workflow.state) ? (
+                                    <p className="text-gray-500 italic">No research data available.</p>
+                                ) : (
+                                    <>
+                                        <LoadingSpinner size="lg" className="mb-4 text-blue-500" />
+                                        <p className="text-gray-500">
+                                            {workflow.state === 'Idle' ? 'Initializing workflow...' : 'Gathering research data...'}
+                                        </p>
+                                    </>
+                                )}
                             </div>
                         )}
                     </CollapsibleSection>

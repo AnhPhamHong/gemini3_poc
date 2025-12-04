@@ -12,6 +12,11 @@ public class Workflow
     public string? DraftContent { get; private set; }
     public string? Tone { get; private set; }
     public string? Feedback { get; private set; }
+    
+    // Edited Draft Storage - Solution 1
+    public string? OriginalDraft { get; private set; }
+    public string? EditedDraft { get; private set; }
+    public string? EditChanges { get; private set; }  // JSON array of changes
     public List<ChatMessage> ChatHistory { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
@@ -55,7 +60,8 @@ public class Workflow
 
     public void SetDraft(string draft)
     {
-        DraftContent = draft;
+        OriginalDraft = draft;      // Store as original for editing phase
+        DraftContent = draft;       // Keep for backward compatibility
         UpdatedAt = DateTime.UtcNow;
     }
 
@@ -69,6 +75,19 @@ public class Workflow
     {
         ChatHistory.Add(new ChatMessage { Role = role, Content = message, Timestamp = DateTime.UtcNow });
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetEditedDraft(string editedContent, List<string> changes)
+    {
+        EditedDraft = editedContent;
+        EditChanges = System.Text.Json.JsonSerializer.Serialize(changes);
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public List<string>? GetEditChanges()
+    {
+        if (string.IsNullOrEmpty(EditChanges)) return null;
+        return System.Text.Json.JsonSerializer.Deserialize<List<string>>(EditChanges);
     }
 }
 
