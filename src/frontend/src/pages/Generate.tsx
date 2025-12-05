@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppDispatch } from '@/app/hooks';
 import { setCurrentView } from '@/features/ui/uiSlice';
 import { setCurrentWorkflow, clearCurrentWorkflow } from '@/features/workflows/workflowSlice';
+import { clearAllTopics } from '@/features/topics/topicSlice';
 import { useGetWorkflowQuery } from '@/services/api';
 import TopicInputForm from '@/features/topics/TopicInputForm';
 import TopicList from '@/features/topics/TopicList';
@@ -31,8 +32,9 @@ export default function Generate() {
         if (workflow) {
             dispatch(setCurrentWorkflow(workflow));
         } else if (!workflowId) {
-            // Clear workflow if no ID in URL
+            // Clear workflow and topics if no ID in URL
             dispatch(clearCurrentWorkflow());
+            dispatch(clearAllTopics());
         }
     }, [workflow, workflowId, dispatch]);
 
@@ -63,13 +65,18 @@ export default function Generate() {
                     {/* Progress Indicator */}
                     <ProgressIndicator />
 
-                    {/* Workflow Viewer */}
+                    {/* Workflow Viewer - includes selected topic display */}
                     <WorkflowViewer />
+
+                    {/* Topic Input Form - Show at bottom when workflow exists */}
+                    <TopicInputForm />
                 </>
             ) : (
                 <>
-                    {/* Topic Input Form - Only show if no workflow is loaded */}
+                    {/* Topic Input Form - Show at top when creating new */}
                     <TopicInputForm />
+
+                    {/* Topic List - Only show when no workflow */}
                     <TopicList />
                 </>
             )}

@@ -112,11 +112,14 @@ class SignalRService {
     }
 
     onWorkflowUpdated(callback: (workflow: any) => void) {
-        this.getConnection().then((connection) => {
-            if (connection) {
-                connection.on('WorkflowUpdated', callback);
-            }
-        });
+        // Register callback immediately on the connection
+        // The connection should already be initialized by the time this is called
+        if (this.connection) {
+            this.connection.on('WorkflowUpdated', callback);
+            console.log('Registered WorkflowUpdated handler');
+        } else {
+            console.warn('SignalR connection not available when registering WorkflowUpdated handler');
+        }
     }
 
     offWorkflowUpdated(callback: (workflow: any) => void) {

@@ -26,12 +26,17 @@ const topicSlice = createSlice({
         clearTopicSelection: (state) => {
             state.selectedTopic = null;
         },
+        clearAllTopics: (state) => {
+            state.suggestions = [];
+            state.selectedTopic = null;
+            state.isGenerating = false;
+        },
         setGenerating: (state, action: PayloadAction<boolean>) => {
             state.isGenerating = action.payload;
         },
     },
 });
 
-export const { setTopicSuggestions, selectTopic, clearTopicSelection, setGenerating } =
+export const { setTopicSuggestions, selectTopic, clearTopicSelection, clearAllTopics, setGenerating } =
     topicSlice.actions;
 export default topicSlice.reducer;

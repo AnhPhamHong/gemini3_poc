@@ -6,6 +6,7 @@ public class WorkflowDto
 {
     public Guid Id { get; set; }
     public string Topic { get; set; } = string.Empty;
+    public string? Tone { get; set; }
     public string State { get; set; } = string.Empty;
     public string CurrentStep { get; set; } = string.Empty;
     public WorkflowDataDto Data { get; set; } = new();
@@ -23,6 +24,7 @@ public class WorkflowDataDto
     public string? OriginalDraft { get; set; }
     public string? EditedDraft { get; set; }
     public List<string>? EditChanges { get; set; }
+    public AgentCore.Application.Workflows.DTOs.SeoAnalysisResult? SeoData { get; set; }
 }
 
 

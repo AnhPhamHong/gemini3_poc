@@ -4,6 +4,8 @@ import { useGetWorkflowQuery } from '@/services/api';
 import { useWorkflowSubscription } from '@/hooks/useWorkflowSubscription';
 import OutlineEditor from './OutlineEditor';
 import EditChangesList from './EditChangesList';
+import SeoResultsView from './SeoResultsView';
+import FinalDraftView from './FinalDraftView';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
 import CollapsibleSection from '@/components/ui/CollapsibleSection';
@@ -30,6 +32,8 @@ export default function WorkflowViewer() {
         outline: false,
         research: false,
         editing: false,
+        seo: false,
+        final: false,
     });
 
     // State for toggling between original and edited draft
@@ -41,7 +45,12 @@ export default function WorkflowViewer() {
 
         const newExpanded = { ...expandedSections };
 
-        if (['Editing', 'Optimizing', 'Final'].includes(workflow.state)) {
+        if (workflow.state === 'Final') {
+            newExpanded.final = true;
+            newExpanded.seo = true;
+        } else if (workflow.state === 'Optimizing') {
+            newExpanded.seo = true;
+        } else if (workflow.state === 'Editing') {
             newExpanded.editing = true;
         } else if (['Drafting', 'Review'].includes(workflow.state)) {
             newExpanded.draft = true;
@@ -91,7 +100,6 @@ export default function WorkflowViewer() {
     const getResearchStatus = () => {
         if (workflow.state === 'Researching' || workflow.state === 'Idle') return 'active';
         if (workflow.data.research) return 'completed';
-        // Infer completion if we are in a later stage
         if (['Outlining', 'WaitingApproval', 'Drafting', 'Review', 'Editing', 'Optimizing', 'Final'].includes(workflow.state)) return 'completed';
         return 'pending';
     };
@@ -108,6 +116,11 @@ export default function WorkflowViewer() {
         return 'pending';
     };
 
+    const getSeoStatus = () => {
+        if (workflow.state === 'Optimizing') return 'active';
+        if (workflow.data.seoData || workflow.state === 'Final') return 'completed';
+        return 'pending';
+    };
 
     return (
         <div className="space-y-6">
@@ -135,8 +148,11 @@ export default function WorkflowViewer() {
                         const currentIndex = stageOrder.indexOf(workflow.state);
                         const stageIndex = stageOrder.indexOf(stage.key);
 
-                        const isCompleted = stageIndex < currentIndex;
-                        const isCurrent = stageIndex === currentIndex;
+                        // When in Final state, all stages are completed (including Final itself)
+                        const isCompleted = workflow.state === 'Final'
+                            ? true
+                            : stageIndex < currentIndex;
+                        const isCurrent = workflow.state !== 'Final' && stageIndex === currentIndex;
 
                         const getStageColor = () => {
                             if (isCompleted) return 'bg-green-500';
@@ -165,8 +181,70 @@ export default function WorkflowViewer() {
                 </div>
             </div>
 
+            {/* Selected Topic Display */}
+            {workflow.topic && (
+                <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
+                    <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">Selected Topic</p>
+                            <h4 className="text-lg font-semibold text-gray-900 leading-tight">{workflow.topic}</h4>
+                            {workflow.tone && (
+                                <span className="inline-flex items-center mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {workflow.tone.charAt(0).toUpperCase() + workflow.tone.slice(1)} Tone
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="space-y-4">
-                {/* 1. Editing Section */}
+                {/* Final Draft Section */}
+                {workflow.state === 'Final' && workflow.data.draft && (
+                    <FinalDraftView
+                        content={workflow.data.draft.content}
+                        isOpen={expandedSections.final}
+                        onToggle={() => toggleSection('final')}
+                        status="completed"
+                    />
+                )}
+
+                {/* SEO Section */}
+                {(workflow.data.seoData || ['Optimizing', 'Final'].includes(workflow.state)) && (
+                    <div className="mb-6">
+                        {workflow.state === 'Optimizing' && !workflow.data.seoData ? (
+                            <CollapsibleSection
+                                title="SEO Optimization"
+                                status="active"
+                                isOpen={expandedSections.seo}
+                                onToggle={() => toggleSection('seo')}
+                            >
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <LoadingSpinner size="lg" className="mb-4 text-green-500" />
+                                    <h4 className="text-lg font-semibold text-gray-800 mb-2">Optimizing for SEO...</h4>
+                                    <p className="text-sm text-gray-500">Analyzing keywords, meta tags, and readability</p>
+                                </div>
+                            </CollapsibleSection>
+                        ) : workflow.data.seoData ? (
+                            <SeoResultsView
+                                workflowId={workflow.id}
+                                seoData={workflow.data.seoData}
+                                isOpen={expandedSections.seo}
+                                onToggle={() => toggleSection('seo')}
+                                status={getSeoStatus()}
+                            />
+                        ) : null}
+                    </div>
+                )}
+
+                {/* Editing Section */}
                 {['Editing', 'Optimizing', 'Final'].includes(workflow.state) && (
                     <CollapsibleSection
                         title="Content Editing"
@@ -182,7 +260,6 @@ export default function WorkflowViewer() {
                             </div>
                         ) : workflow.data.editedDraft ? (
                             <div className="space-y-4">
-                                {/* Toggle between original and edited */}
                                 <div className="flex items-center justify-between bg-gray-50 p-2 rounded mb-2">
                                     <span className="text-xs font-medium text-gray-500">
                                         {showOriginal ? 'Showing: Original Draft' : 'Showing: Edited Version'}
@@ -195,7 +272,6 @@ export default function WorkflowViewer() {
                                     </button>
                                 </div>
 
-                                {/* Content display */}
                                 <div className="prose prose-sm max-w-none text-gray-700">
                                     <ReactMarkdown>
                                         {showOriginal
@@ -205,7 +281,6 @@ export default function WorkflowViewer() {
                                     </ReactMarkdown>
                                 </div>
 
-                                {/* Show changes list when viewing edited version */}
                                 {!showOriginal && workflow.data.editChanges && (
                                     <EditChangesList changes={workflow.data.editChanges} className="mt-4" />
                                 )}
@@ -214,7 +289,7 @@ export default function WorkflowViewer() {
                     </CollapsibleSection>
                 )}
 
-                {/* 2. Draft Section */}
+                {/* Draft Section */}
                 {(workflow.data.draft || ['Drafting', 'Review', 'Editing', 'Optimizing', 'Final'].includes(workflow.state)) && (
                     <CollapsibleSection
                         title="Draft Generation"
@@ -229,7 +304,6 @@ export default function WorkflowViewer() {
                                     <p className="text-sm text-gray-500 mt-1">{workflow.data.draft.metaDescription}</p>
                                 </div>
 
-                                {/* Always show original draft content */}
                                 <div className="prose prose-sm max-w-none text-gray-700">
                                     <ReactMarkdown>
                                         {workflow.data.originalDraft || workflow.data.draft.content}
@@ -260,7 +334,7 @@ export default function WorkflowViewer() {
                     </CollapsibleSection>
                 )}
 
-                {/* 3. Outline Section */}
+                {/* Outline Section */}
                 {(workflow.data.outline || ['Outlining', 'WaitingApproval'].includes(workflow.state) || getOutlineStatus() === 'completed') && (
                     <CollapsibleSection
                         title="Outline"
@@ -283,7 +357,7 @@ export default function WorkflowViewer() {
                     </CollapsibleSection>
                 )}
 
-                {/* 3. Research Section (Bottom Priority) */}
+                {/* Research Section */}
                 {(workflow.data.research || workflow.state === 'Researching' || workflow.state === 'Idle' || getResearchStatus() === 'completed') && (
                     <CollapsibleSection
                         title="Research Findings"

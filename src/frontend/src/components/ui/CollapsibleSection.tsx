@@ -3,6 +3,7 @@ import { ChevronDownIcon, ChevronUpIcon, CheckCircleIcon } from '@heroicons/reac
 
 interface CollapsibleSectionProps {
     title: string;
+    subtitle?: string;
     status: 'pending' | 'active' | 'completed' | 'failed';
     isOpen: boolean;
     onToggle: () => void;
@@ -12,6 +13,7 @@ interface CollapsibleSectionProps {
 
 export default function CollapsibleSection({
     title,
+    subtitle,
     status,
     isOpen,
     onToggle,
@@ -50,16 +52,21 @@ export default function CollapsibleSection({
                 onClick={onToggle}
                 className="w-full flex items-center justify-between p-4 focus:outline-none"
             >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
                     {getStatusIcon()}
-                    <span className={`font-medium ${status === 'active' ? 'text-blue-700' : 'text-gray-700'}`}>
-                        {title}
-                    </span>
+                    <div className="flex-1 min-w-0 text-left">
+                        <span className={`font-medium ${status === 'active' ? 'text-blue-700' : 'text-gray-700'}`}>
+                            {title}
+                        </span>
+                        {!isOpen && subtitle && (
+                            <p className="text-sm text-gray-500 truncate mt-0.5">{subtitle}</p>
+                        )}
+                    </div>
                 </div>
                 {isOpen ? (
-                    <ChevronUpIcon className="w-5 h-5 text-gray-400" />
+                    <ChevronUpIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 ) : (
-                    <ChevronDownIcon className="w-5 h-5 text-gray-400" />
+                    <ChevronDownIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 )}
             </button>
 

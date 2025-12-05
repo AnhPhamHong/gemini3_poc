@@ -6,7 +6,7 @@ public record ResearchCommand(string Topic) : IRequest<string>;
 public record GenerateOutlineCommand(string Topic, string ResearchData) : IRequest<string>;
 public record GenerateDraftCommand(string Topic, string Outline) : IRequest<string>;
 public record EditContentCommand(string DraftContent, string TargetTone = "Professional") : IRequest<EditedContent>;
-public record AnalyzeSeoCommand(string Content) : IRequest<string>;
+
 
 // Support types for commands
 public record EditedContent(string Content, List<string> Changes);

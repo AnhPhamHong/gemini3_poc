@@ -34,6 +34,12 @@ public class AgentCoreDbContext : DbContext
             entity.Property(e => e.OriginalDraft);
             entity.Property(e => e.EditedDraft);
             entity.Property(e => e.EditChanges);
+
+            // Indexes for pagination performance
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.UpdatedAt);
+            entity.HasIndex(e => e.State);
+            entity.HasIndex(e => new { e.State, e.CreatedAt }); // Composite index for filtered sorting
         });
 
         modelBuilder.Entity<Blog>(entity =>

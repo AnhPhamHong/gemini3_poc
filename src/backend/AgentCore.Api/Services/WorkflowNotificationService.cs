@@ -44,6 +44,7 @@ public class WorkflowNotificationService : IWorkflowNotificationService
         {
             Id = workflow.Id,
             Topic = workflow.Topic,
+            Tone = workflow.Tone,
             State = workflow.State.ToString(),
             CurrentStep = GetCurrentStepDescription(workflow.State.ToString()),
             Data = new WorkflowDataDto
@@ -61,7 +62,10 @@ public class WorkflowNotificationService : IWorkflowNotificationService
                 // Edited Draft Storage fields
                 OriginalDraft = workflow.OriginalDraft,
                 EditedDraft = workflow.EditedDraft,
-                EditChanges = workflow.GetEditChanges()
+                EditChanges = workflow.GetEditChanges(),
+                SeoData = string.IsNullOrEmpty(workflow.SeoData) 
+                    ? null 
+                    : System.Text.Json.JsonSerializer.Deserialize<AgentCore.Application.Workflows.DTOs.SeoAnalysisResult>(workflow.SeoData)
             },
             CreatedAt = workflow.CreatedAt,
             UpdatedAt = workflow.UpdatedAt

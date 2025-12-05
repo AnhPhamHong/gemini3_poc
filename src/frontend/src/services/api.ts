@@ -9,6 +9,8 @@ import type {
     ReviseDraftRequest,
     ChatRequest,
     PublishRequest,
+    PagedWorkflowsResponse,
+    WorkflowListParams,
 } from '@/types';
 
 export const blogAgentApi = createApi({
@@ -49,8 +51,19 @@ export const blogAgentApi = createApi({
         }),
 
         // Get all workflows
-        getWorkflows: builder.query<Workflow[], void>({
-            query: () => '/workflows',
+        getWorkflows: builder.query<PagedWorkflowsResponse, WorkflowListParams | void>({
+            query: (params) => {
+                if (!params) return '/workflows';
+
+                const queryParams = new URLSearchParams();
+                if (params.pageNumber) queryParams.append('pageNumber', params.pageNumber.toString());
+                if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString());
+                if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+                if (params.sortDescending !== undefined) queryParams.append('sortDescending', params.sortDescending.toString());
+                if (params.filterByState) queryParams.append('filterByState', params.filterByState);
+
+                return `/workflows?${queryParams.toString()}`;
+            },
             providesTags: ['Workflow'],
         }),
 
@@ -101,10 +114,27 @@ export const blogAgentApi = createApi({
                 body,
             }),
         }),
+
+        // Apply SEO suggestions
+        applySeoSuggestions: builder.mutation<Workflow, string>({
+            query: (workflowId) => ({
+                url: `/workflows/${workflowId}/apply-seo`,
+                method: 'POST',
+            }),
+            invalidatesTags: (_result, _error, workflowId) => [{ type: 'Workflow', id: workflowId }],
+        }),
+
+        // Finalize workflow
+        finalizeWorkflow: builder.mutation<Workflow, string>({
+            query: (workflowId) => ({
+                url: `/workflows/${workflowId}/finalize`,
+                method: 'POST',
+            }),
+            invalidatesTags: (_result, _error, workflowId) => [{ type: 'Workflow', id: workflowId }],
+        }),
     }),
 });
 
-// TODO: What are mutations btw?
 export const {
     useGenerateTopicsMutation,
     useCreateWorkflowMutation,
@@ -115,4 +145,6 @@ export const {
     useReviseDraftMutation,
     useChatWithAgentMutation,
     usePublishToCMSMutation,
+    useApplySeoSuggestionsMutation,
+    useFinalizeWorkflowMutation,
 } = blogAgentApi;

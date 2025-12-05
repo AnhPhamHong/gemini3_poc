@@ -1,4 +1,5 @@
 using AgentCore.Application.Commands;
+using AgentCore.Application.Workflows.Commands;
 using AgentCore.Application.Interfaces;
 using AgentCore.Domain.Entities;
 using AgentCore.Domain.Enums;
@@ -103,10 +104,17 @@ public class OrchestratorService : IOrchestratorService
 
                 case WorkflowState.Optimizing:
                      if (string.IsNullOrEmpty(workflow.DraftContent)) throw new InvalidOperationException("Draft content missing");
-                    var seoResult = await _mediator.Send(new AnalyzeSeoCommand(workflow.DraftContent));
-                    // We might store SEO result, but for now just finish
-                    workflow.TransitionTo(WorkflowState.Final);
-                    shouldContinue = false; // Stop - workflow complete
+                    
+                    // Only analyze if not already analyzed
+                    if (string.IsNullOrEmpty(workflow.SeoData))
+                    {
+                        var seoResult = await _mediator.Send(new AnalyzeSeoCommand(workflow.Id, workflow.DraftContent, workflow.Topic));
+                        var seoJson = System.Text.Json.JsonSerializer.Serialize(seoResult);
+                        workflow.SetSeoData(seoJson);
+                    }
+
+                    // Pause here for user input (Apply Suggestions or Finalize)
+                    shouldContinue = false; 
                     break;
                     
                 case WorkflowState.Final:
@@ -165,6 +173,16 @@ public class OrchestratorService : IOrchestratorService
     public async Task<IEnumerable<Workflow>> GetAllWorkflowsAsync()
     {
         return await _repository.GetAllAsync();
+    }
+
+    public async Task<(IEnumerable<Workflow> Items, int TotalCount)> GetPagedWorkflowsAsync(
+        int pageNumber,
+        int pageSize,
+        string sortBy,
+        bool sortDescending,
+        string? filterByState)
+    {
+        return await _repository.GetPagedAsync(pageNumber, pageSize, sortBy, sortDescending, filterByState);
     }
 
     public async Task<bool> ApproveOutlineAsync(Guid workflowId, string? notes)
@@ -257,6 +275,45 @@ public class OrchestratorService : IOrchestratorService
         await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
 
         return response;
+    }
+
+    public async Task<bool> ApplySeoSuggestionsAsync(Guid workflowId)
+    {
+        var workflow = await _repository.GetAsync(workflowId);
+        if (workflow == null || workflow.State != WorkflowState.Optimizing || string.IsNullOrEmpty(workflow.SeoData))
+            return false;
+
+        var seoData = System.Text.Json.JsonSerializer.Deserialize<AgentCore.Application.Workflows.DTOs.SeoAnalysisResult>(workflow.SeoData);
+        if (seoData == null) return false;
+
+        // Generate optimized content
+        var optimizedContent = await _mediator.Send(new GenerateOptimizedContentCommand(workflow.DraftContent, seoData));
+        
+        // Update draft with optimized content
+        // We might want to store it as a new version, but for now let's update the draft
+        // or maybe update the EditedDraft if we want to preserve the "original" original draft?
+        // The requirement says "display the final version as a collapsible in the Final collapsible".
+        // Let's update the DraftContent so it shows up as the final content.
+        workflow.SetDraft(optimizedContent);
+
+        workflow.TransitionTo(WorkflowState.Final);
+        await _repository.SaveAsync(workflow);
+        
+        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
+        return true;
+    }
+
+    public async Task<bool> FinalizeWorkflowAsync(Guid workflowId)
+    {
+        var workflow = await _repository.GetAsync(workflowId);
+        if (workflow == null || workflow.State != WorkflowState.Optimizing)
+            return false;
+
+        workflow.TransitionTo(WorkflowState.Final);
+        await _repository.SaveAsync(workflow);
+        
+        await _notificationService.NotifyWorkflowUpdatedAsync(workflowId, workflow);
+        return true;
     }
 
 }

@@ -1,4 +1,5 @@
 using AgentCore.Application.Commands;
+using AgentCore.Application.Workflows.Commands;
 using AgentCore.Application.Interfaces;
 using AgentCore.Application.Services;
 using AgentCore.Domain.Entities;
@@ -157,21 +158,73 @@ public class OrchestratorServiceTests
     }
 
     [Fact]
-    public async Task ProcessWorkflowAsync_Optimizing_ShouldCallMediatorAndTransitionToFinal()
+    public async Task ProcessWorkflowAsync_Optimizing_ShouldAnalyzeSeoAndPause()
     {
         // Arrange
         var workflow = new Workflow("Test Topic");
         workflow.SetDraft("Edited Content");
         workflow.TransitionTo(WorkflowState.Optimizing);
         _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
+        
+        var seoResult = new AgentCore.Application.Workflows.DTOs.SeoAnalysisResult 
+        { 
+            Score = 85, 
+            MetaTitle = "Test Title", 
+            MetaDescription = "Test Desc" 
+        };
+
         _mediatorMock.Setup(m => m.Send(It.IsAny<AnalyzeSeoCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("SEO Result");
+            .ReturnsAsync(seoResult);
 
         // Act
         await _service.ProcessWorkflowAsync(workflow.Id, 1);
 
         // Assert
+        Assert.Equal(WorkflowState.Optimizing, workflow.State); // Should stay in Optimizing
+        Assert.NotNull(workflow.SeoData); // Should have saved SEO data
+        _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.Once);
+    }
+
+    [Fact]
+    public async Task ApplySeoSuggestionsAsync_ShouldUpdateDraftAndTransitionToFinal()
+    {
+        // Arrange
+        var workflow = new Workflow("Test Topic");
+        workflow.SetDraft("Original Draft");
+        workflow.TransitionTo(WorkflowState.Optimizing);
+        workflow.SetSeoData("{\"Score\": 85}"); // Mock SEO data
+        
+        _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
+        _mediatorMock.Setup(m => m.Send(It.IsAny<GenerateOptimizedContentCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Optimized Content");
+
+        // Act
+        var result = await _service.ApplySeoSuggestionsAsync(workflow.Id);
+
+        // Assert
+        Assert.True(result);
         Assert.Equal(WorkflowState.Final, workflow.State);
+        Assert.Equal("Optimized Content", workflow.DraftContent);
+        _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.Once);
+    }
+
+    [Fact]
+    public async Task FinalizeWorkflowAsync_ShouldTransitionToFinalWithoutChanges()
+    {
+        // Arrange
+        var workflow = new Workflow("Test Topic");
+        workflow.SetDraft("Original Draft");
+        workflow.TransitionTo(WorkflowState.Optimizing);
+        
+        _repositoryMock.Setup(r => r.GetAsync(workflow.Id)).ReturnsAsync(workflow);
+
+        // Act
+        var result = await _service.FinalizeWorkflowAsync(workflow.Id);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(WorkflowState.Final, workflow.State);
+        Assert.Equal("Original Draft", workflow.DraftContent);
         _repositoryMock.Verify(r => r.SaveAsync(workflow), Times.Once);
     }
     [Fact]

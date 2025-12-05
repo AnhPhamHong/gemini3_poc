@@ -14,6 +14,7 @@ export type ToneType = 'professional' | 'casual' | 'witty' | 'persuasive';
 export interface Workflow {
     id: string;
     topic: string;
+    tone?: string;
     state: WorkflowState;
     currentStep: string; // Human readable status
     data: {
@@ -24,9 +25,18 @@ export interface Workflow {
         originalDraft?: string;
         editedDraft?: string;
         editChanges?: string[];
+        seoData?: SeoAnalysisResult;
     };
     createdAt: string;
     updatedAt: string;
+}
+
+export interface SeoAnalysisResult {
+    keywords: string[];
+    metaTitle: string;
+    metaDescription: string;
+    score: number;
+    suggestions: string[];
 }
 
 export type WorkflowState = 'Idle' | 'Researching' | 'Outlining' | 'WaitingApproval' | 'Drafting' | 'Review' | 'Editing' | 'Optimizing' | 'Final' | 'Failed';
@@ -103,3 +113,24 @@ export interface PublishRequest {
     workflowId: string;
     platform: string;
 }
+
+// Pagination types
+export interface PagedResult<T> {
+    items: T[];
+    pageNumber: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+}
+
+export interface WorkflowListParams {
+    pageNumber?: number;
+    pageSize?: number;
+    sortBy?: string;
+    sortDescending?: boolean;
+    filterByState?: string;
+}
+
+export type PagedWorkflowsResponse = PagedResult<Workflow>;

@@ -77,10 +77,18 @@ public class Workflow
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public string? SeoData { get; private set; } // JSON storage for SEO results
+
     public void SetEditedDraft(string editedContent, List<string> changes)
     {
         EditedDraft = editedContent;
         EditChanges = System.Text.Json.JsonSerializer.Serialize(changes);
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetSeoData(string seoData)
+    {
+        SeoData = seoData;
         UpdatedAt = DateTime.UtcNow;
     }
 

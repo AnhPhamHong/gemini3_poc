@@ -1,6 +1,7 @@
 using AgentCore.Application.Commands;
 using AgentCore.Application.DTOs;
 using AgentCore.Application.Queries;
+using AgentCore.Application.Workflows.Commands;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,23 +21,67 @@ public class WorkflowsController : ControllerBase
     }
 
     /// <summary>
-    /// List all workflows
+    /// List all workflows with pagination support
     /// </summary>
+    /// <param name="pageNumber">Page number (1-indexed), default: 1</param>
+    /// <param name="pageSize">Items per page (1-100), default: 10</param>
+    /// <param name="sortBy">Field to sort by (CreatedAt, UpdatedAt, Topic), default: CreatedAt</param>
+    /// <param name="sortDescending">Sort in descending order, default: true</param>
+    /// <param name="filterByState">Filter by workflow state (optional)</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<WorkflowDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<WorkflowDto>>> ListWorkflows()
+    [ProducesResponseType(typeof(PagedResult<WorkflowDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResult<WorkflowDto>>> ListWorkflows(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? sortBy = "CreatedAt",
+        [FromQuery] bool sortDescending = true,
+        [FromQuery] string? filterByState = null)
     {
+        // Validate query parameters
+        if (pageNumber < 1)
+        {
+            return BadRequest("Page number must be greater than 0");
+        }
+
+        if (pageSize < 1 || pageSize > 100)
+        {
+            return BadRequest("Page size must be between 1 and 100");
+        }
+
+        // Validate sortBy field
+        var validSortFields = new[] { "CreatedAt", "UpdatedAt", "Topic" };
+        if (sortBy != null && !validSortFields.Contains(sortBy, StringComparer.OrdinalIgnoreCase))
+        {
+            return BadRequest($"Invalid sort field. Valid values are: {string.Join(", ", validSortFields)}");
+        }
+
         try
         {
-            var workflows = await _mediator.Send(new ListWorkflowsQuery());
-            return Ok(workflows);
+            var query = new ListWorkflowsQuery
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                SortBy = sortBy,
+                SortDescending = sortDescending,
+                FilterByState = filterByState
+            };
+
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid pagination parameters");
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error listing workflows");
+            _logger.LogError(ex, "Error listing workflows with pagination");
             return StatusCode(500, "An error occurred while listing workflows");
         }
     }
+
 
     /// <summary>
     /// Start a new blog generation workflow
@@ -225,6 +270,69 @@ public class WorkflowsController : ControllerBase
         {
             _logger.LogError(ex, "Error processing chat message for workflow: {WorkflowId}", id);
             return StatusCode(500, "An error occurred while processing the chat message");
+        }
+    }
+    /// <summary>
+    /// Apply SEO suggestions to the content
+    /// </summary>
+    [HttpPost("{id}/apply-seo")]
+    [ProducesResponseType(typeof(WorkflowDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WorkflowDto>> ApplySeoSuggestions(Guid id)
+    {
+        try
+        {
+            var success = await _mediator.Send(new ApplySeoSuggestionsCommand(id));
+            
+            if (!success)
+            {
+                return BadRequest("Cannot apply SEO suggestions. Workflow may not be in Optimizing state or SEO data is missing.");
+            }
+
+            var workflow = await _mediator.Send(new GetWorkflowQuery(id));
+            return Ok(workflow);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound($"Workflow {id} not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying SEO suggestions for workflow: {WorkflowId}", id);
+            return StatusCode(500, "An error occurred while applying SEO suggestions");
+        }
+    }
+
+    /// <summary>
+    /// Finalize the workflow without applying SEO suggestions
+    /// </summary>
+    [HttpPost("{id}/finalize")]
+    [ProducesResponseType(typeof(WorkflowDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WorkflowDto>> FinalizeWorkflow(Guid id)
+    {
+        try
+        {
+            var success = await _mediator.Send(new FinalizeWorkflowCommand(id));
+            
+            if (!success)
+            {
+                return BadRequest("Cannot finalize workflow. Workflow may not be in Optimizing state.");
+            }
+
+            var workflow = await _mediator.Send(new GetWorkflowQuery(id));
+            return Ok(workflow);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound($"Workflow {id} not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error finalizing workflow: {WorkflowId}", id);
+            return StatusCode(500, "An error occurred while finalizing the workflow");
         }
     }
 }
